@@ -1,0 +1,10 @@
+{
+    "python.analysis.extraPaths": [
+      "./",
+      "./src/examples",
+      "./src/utils",
+      "./src/streamlit_utils"
+    ],
+    "window.autoDetectColorScheme": true,
+    "workbench.colorTheme": "Visual Studio Dark"
+}  

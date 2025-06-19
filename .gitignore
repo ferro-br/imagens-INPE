@@ -1,0 +1,14 @@
+# Images (adjust extensions if you have others)
+*.tif
+*.tiff
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+
+# Specific image folders (if you keep images in designated directories)
+images/
+data/raw_images/
+output_images/
+_Samples/
