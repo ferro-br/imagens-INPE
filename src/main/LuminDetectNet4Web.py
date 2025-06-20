@@ -1,4 +1,3 @@
-'''
 import sys
 import os
 
@@ -11,14 +10,11 @@ project_root = os.path.abspath(os.path.join(current_script_dir, '..', '..'))
 # Add the project root to sys.path if it's not already there
 if project_root not in sys.path:
     sys.path.insert(0, project_root) # Insert at the beginning to prioritize it
-'''
 
 import streamlit as st
-from src.utils import *
+from src.streamlit_utils.streamlit_utils import *
 from keras import models
 import cv2
-# Import the new bulk feature extraction function from your new file
-from src.streamlit_utils.streamlit_utils import *
 import joblib
 
 st.set_page_config(layout="wide")
