@@ -1,9 +1,44 @@
+# D:\_Sync\Trabalho\_cur\Projects\Luminiscencias\wip\Luminiscencias\src\main\LuminDetectNet4Web.py
+
+import sys
+import os
+
+# --- FORCE REPOSITORY ROOT INTO SYSPATH (FOR LOCAL DEVELOPMENT ONLY) ---
+# Get the absolute path to the directory containing this script (src/main)
+current_script_dir = os.path.dirname(os.path.abspath(__file__))
+# Go up two levels to reach the repository root (e.g., D:\...\Luminiscencias)
+project_root = os.path.abspath(os.path.join(current_script_dir, '..', '..'))
+
+# Add the project root to sys.path if it's not already there
+if project_root not in sys.path:
+    sys.path.insert(0, project_root) # Insert at the beginning to prioritize it
+
+
+import sys
+import os
+
+print("--- sys.path inspection (from LuminDetectNet4web.py) ---")
+print(f"Current Working Directory: {os.getcwd()}")
+print(f"Script Directory: {os.path.dirname(os.path.abspath(__file__))}")
+print("sys.path entries:")
+for p in sys.path:
+    print(f" - {p}")
+print("-----------------------------------------------------")
+
+
+
+# --- END FORCE SYSPATH MODIFICATION ---
+
+
+
+
 
 import streamlit as st
-from utils import *
+from src.utils import *
 from keras import models
+import cv2
 # Import the new bulk feature extraction function from your new file
-from streamlit_utils import *
+from src.streamlit_utils.streamlit_utils import *
 import joblib
 
 st.set_page_config(layout="wide")
@@ -19,7 +54,7 @@ LOGISTIC_FILE   = 'logistic_regression_model.joblib'
 POSITIVE_LABEL  = 1 # Label for "contains luminescence patterns"
 NEGATIVE_LABEL  = 0 # Label for "does not contain luminescence patterns"
 CNN_CLASS_NAMES = ['Luminescences detected', 'No luminescences detected'] 
-LOG_CLASS_NAMES = ['Clear Shot (Usable)', 'Dark Shot (Unusable)'] # Names for logistic classifier
+LOG_CLASS_NAMES = ['Clear Shot (Usable)', 'Dark Shot (Unusable)'] # Names for the logistic classifier's classes
 
 
 # Parameters of the features
@@ -84,17 +119,16 @@ process_button = st.button("Process Files")
 if st.button("Reset Uploads"):
     st.session_state['file_uploader_key'] += 1 # Increment key to reset uploader
     st.session_state['uploaded_files_data'] = None # Clear stored files
+    st.session_state['processing_results'] = []  # Initialize processing_results
     st.rerun() # Force rerun to apply the new key and clear data
-
 
 # --- Conditional Processing Logic ---
 # This block now only runs when the "Process Files" button is clicked AND files are available
 if process_button and st.session_state['uploaded_files_data']:
     st.write("--- Starting Processing ---") # Added for clarity
     with st.spinner("Extracting features from images... This might take a moment."):
-        processed_images, file_names = extract_features_bulk_for_streamlit_uploads(
-            st.session_state['uploaded_files_data'], SAMPLE_DIMS, INTERPOL_METHOD, False, True
-        )
+        processed_images, file_names, reduced_images, original_images = extract_features_bulk_for_streamlit_uploads(
+            st.session_state['uploaded_files_data'], SAMPLE_DIMS, INTERPOL_METHOD, True)
     
     if processed_images.size > 0: # Check if any images were processed
         st.success(f"{len(file_names)} images processed and features extracted.")
@@ -117,30 +151,35 @@ if process_button and st.session_state['uploaded_files_data']:
             file_name = file_names[i]
             
             # Get Logistic Regression result
-            log_predicted_label = log_predictions[i]
-            log_predicted_name = LOG_CLASS_NAMES[1-log_predicted_label]
+            log_pred_value      = log_predictions[i]
+            log_pred_class      = LOG_CLASS_NAMES[1-log_pred_value]
 
             # Get CNN result
             cnn_pred_prob_array = cnn_predictions[i]                     
-            cnn_pred_prob_val = cnn_pred_prob_array.item()                     
-            cnn_predicted_class_index = 1 if cnn_pred_prob_val >= 0.5 else 0
-            cnn_predicted_class_name = CNN_CLASS_NAMES[1-cnn_predicted_class_index]
+            cnn_pred_prob_val   = cnn_pred_prob_array.item()                     
+            cnn_pred_value      = 1 if cnn_pred_prob_val >= 0.5 else 0
+            cnn_pred_class      = CNN_CLASS_NAMES[1-cnn_pred_value]
             
             # Store results
             st.session_state['processing_results'].append({
-                "file_name": file_name,
-                "logistic_class_name": log_predicted_name,
-                "logistic_class_index": log_predicted_label,
-                "cnn_probability_luminescence": f"{cnn_pred_prob_val:.4f}",
-                "cnn_predicted_class_name": cnn_predicted_class_name,
-                "cnn_predicted_class_index": cnn_predicted_class_index
+                "file_name": file_name,           # Name of the file
+                "log_pred_class": log_pred_class, # Class of the picture (clear or dark), given by the logistic model
+                "log_pred_value": log_pred_value, # Output value of the logistic model
+                "cnn_pred_prob_val": f"{cnn_pred_prob_val:.4f}", # Output value of the Conv Net model
+                "cnn_pred_class": cnn_pred_class, # Class of the Conv Net model (with/witout luminescences)
+                "cnn_pred_value": cnn_pred_value,  # Output value of the Conv Net model (rounded)
+                "image_data": original_images[i] # Store the original image here                
+                # "reduced_image_data": reduced_images[i]                
             })
             
             # Display results
             st.markdown(f"**Image:** `{file_name}`")
-            st.write(f" &nbsp;&nbsp;&nbsp;&nbsp;**Initial Classification (Clear/Dark):** `{log_predicted_name}`")
+            st.write(f" &nbsp;&nbsp;&nbsp;&nbsp;**Initial Classification (Clear/Dark):** `{log_pred_class}`")
             st.write(f" &nbsp;&nbsp;&nbsp;&nbsp;**Luminescence Probability:** `{cnn_pred_prob_val:.4f}`")
-            st.write(f" &nbsp;&nbsp;&nbsp;&nbsp;**Luminescence Predicted Class:** `{cnn_predicted_class_name}` (Label: `{cnn_predicted_class_index}`)")
+            if log_pred_value == 1:
+               st.write(f" &nbsp;&nbsp;&nbsp;&nbsp;**Luminescence Predicted Class:** `{cnn_pred_class}` (Label: `{cnn_pred_value}`)")
+            else:
+               st.write(f" &nbsp;&nbsp;&nbsp;&nbsp;**Luminescence Predicted Class:** `{cnn_pred_class}` (Irrelevant since the image is unusable)")
             st.write("---")
         
         st.success("Overall processing complete! Results are displayed above and ready for PDF report.")

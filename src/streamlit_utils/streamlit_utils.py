@@ -1,5 +1,5 @@
 import cv2
-from utils import *
+#from src.utils import *
 import numpy as np
 from PIL import Image
 import io
@@ -64,15 +64,17 @@ def extract_features_bulk_for_streamlit_uploads(
     uploaded_files_list: list,
     sample_dims: tuple,
     interpol_method: int,
-    reshape: bool = True,
     verbose: bool = True
-) -> tuple[np.ndarray, list[str]]:
+) -> tuple[np.ndarray, list[str], list[np.ndarray], list[np.ndarray]]: 
     """
     Processes a list of Streamlit UploadedFile objects, extracts features,
     and returns a NumPy array of features and a list of file names.
     """
-    X = []  # list to store the samples (features)
-    file_names = []  # list to store the file names corresponding to the samples
+    X               = [] # list to store the samples (features, currently the same thing as "reduced_images")
+    file_names      = [] # list to store the file names corresponding to the samples
+    reduced_images  = [] # list to store resized images for reporting (currently, the same thing as "X")
+    original_images = [] # list to store the original images 
+
     samp = 0  # sample counter
 
     # Using the tic() and tac() that you defined in utils.py
@@ -89,16 +91,32 @@ def extract_features_bulk_for_streamlit_uploads(
             start_time = time.time()
 
         try:
+            uploaded_file_obj.seek(0) # Rewind the file pointer to the beginning 
             # 1. Read the file content in bytes
             bytes_data = uploaded_file_obj.read()
             # 2. Open the bytes as a PIL Image (Pillow)
             image_pil = Image.open(io.BytesIO(bytes_data))
 
-            # 3. Call the NEW extract_features_from_pil function
-            features = extract_features_from_pil(image_pil, sample_dims, interpol_method, reshape)
+            # Convert PIL Image to OpenCV format (NumPy array) for resizing
+            # Ensure it's in BGR format if your model expects it, and for cv2.imencode
+            img_cv2 = np.array(image_pil)
+            if img_cv2.ndim == 2: # Grayscale
+                img_cv2 = cv2.cvtColor(img_cv2, cv2.COLOR_GRAY2BGR)
+            elif img_cv2.shape[2] == 4: # RGBA
+                img_cv2 = cv2.cvtColor(img_cv2, cv2.COLOR_RGBA2BGR)
+            else: # RGB or BGR (ensure it's BGR for OpenCV functions)
+                img_cv2 = cv2.cvtColor(img_cv2, cv2.COLOR_RGB2BGR) # PIL is RGB, OpenCV is BGR
+       
+            # Resize image for models and PDF display
+            resized_img_cv2 = cv2.resize(img_cv2, (sample_dims[1], sample_dims[0]), interpolation=interpol_method)
 
+            # 3. Call the NEW extract_features_from_pil function
+            features = resized_img_cv2 # Note: currently, "features" and "resized_img_cv2" are the same exact thing
+ 
             X.append(features)
             file_names.append(current_file_name)
+            reduced_images.append(resized_img_cv2) # Store the resized image
+            original_images.append(img_cv2)  # Store the original image
 
             if verbose:
                 print('Done.')
@@ -117,9 +135,9 @@ def extract_features_bulk_for_streamlit_uploads(
         print(f"Total elapsed time: {total_elapsed_time:.4f} seconds")
 
     if not X: # If the list X is empty (no images processed successfully)
-        return np.array([]), [] # Return empty NumPy arrays
+        return np.array([]), [], [], [] # Return empty NumPy arrays
 
-    return np.array(X), file_names
+    return np.array(X), file_names, reduced_images, original_images
 
 # Define the PDF creation function
 def create_pdf_report(results, report_title="Image Processing Report"):
@@ -159,13 +177,50 @@ def create_pdf_report(results, report_title="Image Processing Report"):
             pdf.set_font("Arial", style="B", size=11)
             pdf.cell(200, 10, txt=f"Image: {result.get('file_name', 'N/A')}", ln=True)
             pdf.set_font("Arial", size=10)
-            
+            image_data = result.get('image_data') 
+
+            if image_data is not None and image_data.size > 0:
+                try:
+                    image_width_mm = 80 # Define the width for the image in the PDF
+                    target_dpi = 200    # Define the DPI for quality
+
+                    # Get a properly resized copy of the image
+                    # Note: "resample_image_for_pdf" is pixeling the image whatever the reason
+                    #resized_image_data_for_pdf = resample_image_for_pdf(image_data, image_width_mm, target_dpi)
+                    resized_image_data_for_pdf = image_data
+
+                    # Encode the pre-resized image data to PNG
+                    # Use resized_image_data_for_pdf directly, it's already uint8
+                    is_success, buffer = cv2.imencode(".png", resized_image_data_for_pdf) 
+                    
+                    if is_success:
+                        if pdf.get_y() + image_width_mm + 10 > pdf.h - 20:
+                            pdf.add_page()
+                            # Optional: Add file name again on new page if it's the start of an entry
+                            pdf.set_font("Arial", style="B", size=11)
+                            pdf.cell(200, 10, txt=f"Image: {result.get('file_name', 'N/A')} (Continued)", ln=True)
+                            pdf.set_font("Arial", size=10)
+
+                        pdf.image(io.BytesIO(buffer), x=pdf.get_x() + 5, y=pdf.get_y(), w=image_width_mm)
+                        pdf.set_xy(pdf.get_x(), pdf.get_y() + image_width_mm + 5)
+                    else:
+                        pdf.cell(200, 7, txt="  (Error: Could not encode image for PDF)", ln=True)
+                except Exception as e:
+                    pdf.cell(200, 7, txt=f"  (Error embedding image: {e})", ln=True)
+            else:
+                pdf.cell(200, 7, txt="  (No image data available for PDF display)", ln=True)
+
             # Logistic Regression Result
-            pdf.cell(200, 7, txt=f"  Quality Classification: {result.get('logistic_class_name', 'N/A')}", ln=True)
+            pdf.cell(200, 7, txt=f"  Quality Classification: {result.get('log_pred_class', 'N/A')}", ln=True)
             
             # CNN Luminescence Result (using the CORRECTED key name)
-            pdf.cell(200, 7, txt=f"  Luminescence Probability: {result.get('cnn_probability_luminescence', 'N/A')}", ln=True)
-            pdf.cell(200, 7, txt=f"  Luminescence Predicted Class: {result.get('cnn_predicted_class_name', 'N/A')} (Label: {result.get('cnn_predicted_class_index', 'N/A')})", ln=True)
+            pdf.cell(200, 7, txt=f"  Luminescence Probability: {result.get('cnn_pred_prob_val', 'N/A')}", ln=True)
+
+            if result.get('log_pred_value', 'N/A') == 1:
+              pdf.cell(200, 7, txt=f"  Luminescence Predicted Class: {result.get('cnn_pred_class', 'N/A')} (Label: {result.get('cnn_pred_value', 'N/A')})", ln=True)
+            else:
+              pdf.cell(200, 7, txt=f"  Luminescence Predicted Class: {result.get('cnn_pred_class', 'N/A')} (Irrelevant since the image is unusable)", ln=True)
+            
             pdf.ln(3) # Small line break between results
 
     # Output the PDF to a BytesIO object

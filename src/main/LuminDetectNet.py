@@ -3,10 +3,13 @@
 #    (1) "positive" (with the luminiscence patterns) 
 #    (2) "negative" (without the patterns)
 # CAVEAT, COWBOY: Both "positive" and "negative" samples have to be "clear shots"!!
-from utils import *
+from src.utils.utils import *
 from matplotlib import pyplot as plt
 #from keras import layers, models
-from utils_net import build_CNN
+import cv2
+import numpy as np
+from src.utils.utils_net import build_CNN
+
 
 # Parameteres of the data used in the learning
 path_pos_files = '..\..\_Samples\clear\clear1' # Location of the positive files (can contain subfolders)

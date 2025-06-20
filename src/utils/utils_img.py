@@ -67,3 +67,41 @@ def create_dataset(image_paths, labels):
     y = np.array(y)
     dic = {'data': X, 'target': y}
     return dic
+
+
+def resample_image_for_pdf(image_np: np.ndarray, target_width_mm: float, target_dpi: int = 200) -> np.ndarray:
+    """
+    Resamples an OpenCV image (NumPy array) to a target width in millimeters
+    at a specified DPI, maintaining aspect ratio.
+
+    Args:
+        image_np (np.ndarray): The input image as an OpenCV (BGR) NumPy array.
+        target_width_mm (float): The desired width of the image in millimeters in the PDF.
+        target_dpi (int): The desired resolution (Dots Per Inch) for the image.
+                          Common values are 150 (good), 200 (better), 300 (print quality).
+
+    Returns:
+        np.ndarray: The resampled image as a NumPy array, suitable for PDF embedding.
+                    Will be of type np.uint8.
+    """
+    if image_np.size == 0:
+        return image_np # Return empty array if input is empty
+
+    original_height, original_width = image_np.shape[:2]
+
+    # Calculate target pixel dimensions
+    target_width_pixels = int((target_width_mm / 25.4) * target_dpi) # 25.4 mm per inch
+    target_height_pixels = int((original_height / original_width) * target_width_pixels)
+
+    # Ensure dimensions are positive to prevent cv2.resize errors
+    if target_width_pixels <= 0: target_width_pixels = 1
+    if target_height_pixels <= 0: target_height_pixels = 1
+
+    # Resize using high-quality interpolation (INTER_LANCZOS4 is generally excellent)
+    resized_image_data = cv2.resize(
+        image_np,
+        (target_width_pixels, target_height_pixels),
+        interpolation=cv2.INTER_LANCZOS4
+    )
+
+    return resized_image_data.astype(np.uint8)
