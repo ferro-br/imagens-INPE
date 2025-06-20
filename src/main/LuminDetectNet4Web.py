@@ -1,3 +1,4 @@
+'''
 import sys
 import os
 
@@ -10,7 +11,8 @@ project_root = os.path.abspath(os.path.join(current_script_dir, '..', '..'))
 # Add the project root to sys.path if it's not already there
 if project_root not in sys.path:
     sys.path.insert(0, project_root) # Insert at the beginning to prioritize it
-    
+'''
+
 import streamlit as st
 from src.utils import *
 from keras import models

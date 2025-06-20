@@ -1,2 +1,15 @@
-tensorflow
-keras
+# Core Streamlit app dependencies
+streamlit
+tensorflow==2.10.0 # From your pip freeze
+opencv-python==4.10.0.84 # From your pip freeze
+numpy==1.26.4 # From your pip freeze
+pandas # No explicit version in your freeze, so let pip install latest compatible
+matplotlib==3.9.1 # From your pip freeze
+joblib # No explicit version in your freeze, let pip install latest compatible
+fpdf2 # No explicit version in your freeze, let pip install latest compatible
+scikit-learn==1.6.1 # From your pip freeze (note the .whl comment)
+scipy==1.14.1 # From your pip freeze (note the .whl comment)
+pillow # PIL/Image library, no explicit version in freeze, let pip install latest compatible
+
+# Add any other packages you explicitly import and use in your app
+# if they are not covered by the above or their dependencies.
