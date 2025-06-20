@@ -1,5 +1,3 @@
-# D:\_Sync\Trabalho\_cur\Projects\Luminiscencias\wip\Luminiscencias\src\main\LuminDetectNet4Web.py
-
 import sys
 import os
 
@@ -12,27 +10,7 @@ project_root = os.path.abspath(os.path.join(current_script_dir, '..', '..'))
 # Add the project root to sys.path if it's not already there
 if project_root not in sys.path:
     sys.path.insert(0, project_root) # Insert at the beginning to prioritize it
-
-
-import sys
-import os
-
-print("--- sys.path inspection (from LuminDetectNet4web.py) ---")
-print(f"Current Working Directory: {os.getcwd()}")
-print(f"Script Directory: {os.path.dirname(os.path.abspath(__file__))}")
-print("sys.path entries:")
-for p in sys.path:
-    print(f" - {p}")
-print("-----------------------------------------------------")
-
-
-
-# --- END FORCE SYSPATH MODIFICATION ---
-
-
-
-
-
+    
 import streamlit as st
 from src.utils import *
 from keras import models
