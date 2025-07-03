@@ -214,12 +214,12 @@ def create_pdf_report(results, report_title="Image Processing Report"):
             pdf.cell(200, 7, txt=f"  Quality Classification: {result.get('log_pred_class', 'N/A')}", ln=True)
             
             # CNN Luminescence Result (using the CORRECTED key name)
-            pdf.cell(200, 7, txt=f"  Luminescence Probability: {result.get('cnn_pred_prob_val', 'N/A')}", ln=True)
+            pdf.cell(200, 7, txt=f"  Wave patterns detected with probability: {result.get('cnn_pred_prob_val', 'N/A')}", ln=True)
 
             if result.get('log_pred_value', 'N/A') == 1:
-              pdf.cell(200, 7, txt=f"  Luminescence Predicted Class: {result.get('cnn_pred_class', 'N/A')} (Label: {result.get('cnn_pred_value', 'N/A')})", ln=True)
+              pdf.cell(200, 7, txt=f"  Predicted Class: {result.get('cnn_pred_class', 'N/A')} (Label: {result.get('cnn_pred_value', 'N/A')})", ln=True)
             else:
-              pdf.cell(200, 7, txt=f"  Luminescence Predicted Class: {result.get('cnn_pred_class', 'N/A')} (Irrelevant since the image is unusable)", ln=True)
+              pdf.cell(200, 7, txt=f"  Predicted Class: {result.get('cnn_pred_class', 'N/A')} (Irrelevant since the image is unusable)", ln=True)
             
             pdf.ln(3) # Small line break between results
 
