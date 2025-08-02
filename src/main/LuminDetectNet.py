@@ -3,17 +3,17 @@
 #    (1) "positive" (with the luminiscence patterns) 
 #    (2) "negative" (without the patterns)
 # CAVEAT, COWBOY: Both "positive" and "negative" samples have to be "clear shots"!!
-from src.utils.utils import *
+from utils.utils import *
 from matplotlib import pyplot as plt
 #from keras import layers, models
 import cv2
 import numpy as np
-from src.utils.utils_net import build_CNN
+from utils.utils_net import build_CNN
 
 
 # Parameteres of the data used in the learning
-path_pos_files = '..\..\_Samples\clear\clear1' # Location of the positive files (can contain subfolders)
-path_neg_files = '..\..\_Samples\clear\clear2' # Location of the negative files (can contain subfolders)
+path_pos_files = '..\..\_Samples\clear\clear2' # Location of the positive files (can contain subfolders)
+path_neg_files = '..\..\_Samples\clear\clear1' # Location of the negative files (can contain subfolders)
 
 POSITIVE_LABEL = 1 # positive label
 NEGATIVE_LABEL = 0 # negative label

@@ -115,7 +115,7 @@ if process_button and st.session_state['uploaded_files_data']:
             features_for_logistic = processed_images.reshape(processed_images.shape[0], -1)
             log_predictions = LOG_CLASSIFIER.predict(features_for_logistic) 
             ind_clear_shots = np.where(log_predictions == 1)[0]
-            st.success("Logistic classification completed!")
+            st.success("Logistic classification completed!") 
 
         clear_shot_images = processed_images[ind_clear_shots]
         
