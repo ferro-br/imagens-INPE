@@ -42,7 +42,7 @@ try:
     # Construct the full path to the model file
     CNN_MODEL_FULL_PATH = os.path.join(PROJECT_ROOT, CONV_NET_FILE)
 
-    CONV_NET = models.load_model(CNN_MODEL_FULL_PATH)
+    CONV_NET = models.load_model(CONV_NET_FILE)
 except Exception as e:
     st.error(
         f"Error loading the CNN model:\n"
