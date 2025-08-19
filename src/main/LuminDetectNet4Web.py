@@ -5,8 +5,8 @@ import io # NEW: For in-memory file operations
 import zipfile # NEW: For creating zip archives
 
 # --- FORCE REPOSITORY ROOT INTO SYSPATH (FOR LOCAL DEVELOPMENT ONLY) ---
-current_script_dir = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(current_script_dir, '..', '..'))
+CURRENT_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_SCRIPT_DIR, '..', '..'))
 
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -44,7 +44,13 @@ try:
 
     CONV_NET = models.load_model(CNN_MODEL_FULL_PATH)
 except Exception as e:
-    st.error(f"Error loading the CNN model: {e}. Please ensure '{CONV_NET_FILE}' is in the correct directory.")
+    st.error(
+        f"Error loading the CNN model:\n"
+        f"Reason: {e}\n"
+        f"Searched path: {PROJECT_ROOT}\n"
+        f"Main app's path: {CURRENT_SCRIPT_DIR}\n"
+        f"Please ensure '{CONV_NET_FILE}' is in the correct directory."
+    )    
     st.stop()
 
 # Reads a logistic classifier from disk
