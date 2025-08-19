@@ -143,8 +143,8 @@ if process_button and st.session_state['uploaded_files_data']:
             log_pred_class = LOG_CLASS_NAMES[1 - log_pred_value] # Label of the image class
 
             # Default values for images that are not "clear shots"
-            cnn_pred_prob_val = -1.0
-            cnn_pred_value = -1
+            cnn_pred_prob_val = None
+            cnn_pred_value = None
             cnn_pred_class = 'Not classified because the shot was not clear'
 
             if log_pred_value == 1: # if "file_name" contains a clear shot
