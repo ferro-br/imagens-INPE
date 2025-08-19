@@ -1,6 +1,6 @@
 # Core Streamlit app dependencies
 streamlit
-tensorflow # tensorflow==2.10.0 
+tensorflow==2.10.0  # tensorflow==2.10.0 
 opencv-python==4.10.0.84 # From your pip freeze
 numpy # numpy==1.26.4 
 pandas # No explicit version in your freeze, so let pip install latest compatible
