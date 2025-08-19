@@ -6,10 +6,10 @@ import zipfile # NEW: For creating zip archives
 
 # --- FORCE REPOSITORY ROOT INTO SYSPATH (FOR LOCAL DEVELOPMENT ONLY) ---
 current_script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_script_dir, '..', '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(current_script_dir, '..', '..'))
 
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 import streamlit as st
 from src.streamlit_utils.streamlit_utils import *
@@ -32,7 +32,6 @@ NEGATIVE_LABEL = 0 # Label for "does not contain waves patterns"
 CNN_CLASS_NAMES = ['Waves patterns detected', 'Waves patterns NOT detected']
 LOG_CLASS_NAMES = ['Clear Shot (Usable)', 'Dark Shot (Unusable)'] # Names for the logistic classifier's classes
 
-
 # Parameters of the features
 SAMPLE_DIMS = (50, 50) # A tuple to hold the pictures' size (dimensions in pixels) after resizeing (to extract the features)
 PERC_TEST_SET = 0.2 # Percentage of the original dataset that will be used to test the model
@@ -40,7 +39,10 @@ INTERPOL_METHOD = cv2.INTER_LINEAR # Interpolation: INTER_NEAREST, INTER_LINEAR,
 
 # Reads a convolutional NN from disk
 try:
-    CONV_NET = models.load_model(CONV_NET_FILE)
+    # Construct the full path to the model file
+    CNN_MODEL_FULL_PATH = os.path.join(PROJECT_ROOT, CONV_NET_FILE)
+
+    CONV_NET = models.load_model(CNN_MODEL_FULL_PATH)
 except Exception as e:
     st.error(f"Error loading the CNN model: {e}. Please ensure '{CONV_NET_FILE}' is in the correct directory.")
     st.stop()
