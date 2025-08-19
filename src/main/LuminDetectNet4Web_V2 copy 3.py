@@ -1,8 +1,8 @@
 import sys
 import os
 import numpy as np
-import io # NEW: For in-memory file operations
-import zipfile # NEW: For creating zip archives
+import io # For in-memory file operations
+import zipfile # For creating zip archives
 
 # --- FORCE REPOSITORY ROOT INTO SYSPATH (FOR LOCAL DEVELOPMENT ONLY) ---
 current_script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,9 +17,126 @@ from keras import models
 import cv2
 import joblib
 
-st.set_page_config(layout="wide")
+# --- New function to create a zip file with only images containing wave patterns ---
+def create_images_with_waves_zip():
+    """
+    Creates a zip archive containing only the clear-shot images
+    that were classified as having wave patterns.
 
-st.write("Hello world") # Consider removing or integrating this later
+    Returns:
+        io.BytesIO: A BytesIO object containing the zip file data, or None if no
+                    relevant images are found.
+    """
+    # Folder names to be used inside the zip archive
+    ZIP_BASE_FOLDER_NAME = "Images_With_Waves_Detected"
+    # Use the actual class name for the subfolder, replacing spaces
+    ZIP_WAVES_DETECTED_FOLDER = os.path.join(ZIP_BASE_FOLDER_NAME, 'Waves_patterns_detected')
+
+    if not st.session_state.get('processing_results'):
+        st.warning("No processing results available to create a zip file.")
+        return None # Return None if no results
+
+    zip_buffer = io.BytesIO()
+
+    # Create the zip file in the in-memory buffer
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED, False) as zipf:
+        added_count = 0
+        for result in st.session_state['processing_results']:
+            file_name = result["file_name"]
+            image_data = result["image_data"]
+
+            # Filter for clear shots with waves patterns
+            # The condition is that both log_pred_value AND cnn_pred_value are 1
+            log_pred_value = result.get("log_pred_value")
+            cnn_pred_value = result.get("cnn_pred_value")
+
+            if log_pred_value == 1 and cnn_pred_value == 1:
+                # This image meets the criteria, so we process it
+                if image_data is None or not isinstance(image_data, np.ndarray):
+                    st.warning(f"Skipping '{file_name}' for zip: Image data is missing or not a valid NumPy array.")
+                    continue
+
+                try:
+                    # Get the file extension (e.g., '.tif', '.tiff')
+                    file_ext = "." + file_name.split('.')[-1].lower()
+                    # Encode the image data into bytes
+                    is_success, encoded_image = cv2.imencode(file_ext, image_data)
+
+                    if is_success:
+                        # Construct the path inside the zip
+                        arcname = os.path.join(ZIP_WAVES_DETECTED_FOLDER, file_name)
+                        zipf.writestr(arcname, encoded_image.tobytes())
+                        added_count += 1
+                    else:
+                        st.error(f"Failed to encode image '{file_name}' for zip. Check file format support.")
+                except Exception as e:
+                    st.error(f"Failed to add '{file_name}' to zip: {e}")
+            # If the image does not meet the criteria, we simply skip it.
+
+    if added_count > 0:
+        st.success(f"Prepared {added_count} images with wave patterns for zip archive.")
+        zip_buffer.seek(0) # Rewind the buffer to the beginning
+        return zip_buffer
+    else:
+        st.info("No images with detected wave patterns were found.")
+        return None
+
+def create_classified_images_zip():
+    if not st.session_state['processing_results']:
+        st.warning("No processing results available to create a zip file.")
+        return None # Return None if no results
+
+    zip_buffer = io.BytesIO()
+    
+    # Create the zip file in the in-memory buffer
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED, False) as zipf:
+        added_count = 0
+        for result in st.session_state['processing_results']:
+            file_name = result["file_name"]
+            image_data = result["image_data"]
+
+            if image_data is None or not isinstance(image_data, np.ndarray):
+                st.warning(f"Skipping '{file_name}' for zip: Image data is missing or not a valid NumPy array.")
+                continue
+
+            log_pred_value = result["log_pred_value"]
+            cnn_pred_value = result["cnn_pred_value"]
+
+            # Determine the path where this file should go inside the zip
+            arcname = "" # Archive Name (path inside the zip)
+            if log_pred_value == 0: # Dark Shot
+                arcname = os.path.join(ZIP_DARK_SHOTS_FOLDER, file_name)
+            elif log_pred_value == 1: # Clear Shot
+                if cnn_pred_value == 1: # Waves Patterns detected
+                    arcname = os.path.join(ZIP_WAVES_DETECTED_FOLDER, file_name)
+                elif cnn_pred_value == 0: # Waves Patterns NOT detected
+                    arcname = os.path.join(ZIP_WAVES_NOT_DETECTED_FOLDER, file_name)
+                else: # Fallback for unexpected CNN value for a clear shot
+                    st.warning(f"Skipping '{file_name}' for zip: Clear shot but CNN prediction was inconclusive ({cnn_pred_value}).")
+                    continue
+            else: # Fallback for unexpected logistic value
+                st.warning(f"Skipping '{file_name}' for zip: Unexpected logistic prediction value ({log_pred_value}).")
+                continue
+
+            try:
+                # Get the file extension (e.g., '.tif', '.tiff')
+                file_ext = "." + file_name.split('.')[-1].lower()
+                # Encode the image data into bytes
+                is_success, encoded_image = cv2.imencode(file_ext, image_data)
+                
+                if is_success:
+                    zipf.writestr(arcname, encoded_image.tobytes())
+                    added_count += 1
+                else:
+                    st.error(f"Failed to encode image '{file_name}' for zip. Check file format support.")
+            except Exception as e:
+                st.error(f"Failed to add '{file_name}' to zip: {e}")
+                
+    st.success(f"Prepared {added_count} images for zip archive.")
+    zip_buffer.seek(0) # Rewind the buffer to the beginning
+    return zip_buffer
+
+st.set_page_config(layout="wide")
 
 # Name of the file on disk which stores the CNN created
 CONV_NET_FILE = 'luminiscence_cnn_model.keras'
@@ -58,13 +175,23 @@ st.title("Upload Files From a Folder")
 st.write("Please, select the files you want to process.")
 
 # --- Session State Initialization for Uploader Key and Stored Files ---
+# A dynamic key to force a reset of the file uploader widget.
 if 'file_uploader_key' not in st.session_state:
     st.session_state['file_uploader_key'] = 0
+
+# Stores a copy of the list of uploaded files from the uploader.
 if 'uploaded_files_data' not in st.session_state:
     st.session_state['uploaded_files_data'] = None
+
+# Stores a list of dictionaries, where each dictionary contains the processing results for a single image.
 if 'processing_results' not in st.session_state:
-    st.session_state['processing_results'] = [] # Initialize processing_results
-# NEW: Session state for the generated zip file
+    st.session_state['processing_results'] = []
+
+# Holds the in-memory zip file buffer for the "waves-only" download button.
+if 'waves_zip_buffer' not in st.session_state:
+    st.session_state['waves_zip_buffer'] = None
+
+# Holds the in-memory zip file buffer for the "all classified images" download button.
 if 'classified_zip_buffer' not in st.session_state:
     st.session_state['classified_zip_buffer'] = None
 
@@ -133,8 +260,12 @@ if process_button and st.session_state['uploaded_files_data']:
 
         # Clear previous results before adding new ones
         st.session_state['processing_results'] = [] 
-        st.session_state['classified_zip_buffer'] = None # Ensure zip buffer is cleared on new processing
-        
+        st.session_state['classified_zip_buffer'] = None # Ensure zip buffer is cleared on new processing        
+
+
+
+
+
         contImgCNN = 0 # Auxiliar index variable (the CNN processed "clear shots" only)
         for contImg in range(len(file_names)): # iterates over all uploaded images
             file_name = file_names[contImg] # Name of the image
@@ -167,24 +298,12 @@ if process_button and st.session_state['uploaded_files_data']:
                 "image_data": original_images[contImg]
             })
             
-            st.markdown(f"**Image:** `{file_name}`")
-            st.write(f" &nbsp;&nbsp;&nbsp;&nbsp;**Image quality classification (Clear/Dark):** `{log_pred_class}`")
-            if log_pred_value == 1:
-                st.write(f" &nbsp;&nbsp;&nbsp;&nbsp;**Wave patterns detected with probability:** `{cnn_pred_prob_val:.4f}`")
-                st.write(f" &nbsp;&nbsp;&nbsp;&nbsp;**Predicted Class:** `{cnn_pred_class}` (Label: `{cnn_pred_value}`)")
-            else:
-                st.write(f" &nbsp;&nbsp;&nbsp;&nbsp;**Wave patterns detected with probability:** `N/A` (Image was dark/unusable)")
-                st.write(f" &nbsp;&nbsp;&nbsp;&nbsp;**Predicted Class:** `{cnn_pred_class}`")
-            st.write("---")
-        
-        st.success("Overall processing complete! Results are displayed above and ready for PDF report and image saving.")
-
+        st.success("Overall processing complete! Results are ready for PDF report and image saving.")
     else:
         st.warning("No valid images were processed for feature extraction. Please check the uploaded files or console for errors.")
         st.session_state['processing_results'] = []
 elif process_button and not st.session_state['uploaded_files_data']:
     st.warning("Please upload files before clicking 'Process Files'.")
-
 
 # --- Function to create zip file in memory ---
 # Folder names to be used inside the zip archive
@@ -193,63 +312,6 @@ ZIP_DARK_SHOTS_FOLDER = os.path.join(ZIP_BASE_FOLDER_NAME, "Dark_Shots")
 # Use the actual class names for subfolders in Clear_Shots, replacing spaces
 ZIP_WAVES_DETECTED_FOLDER = os.path.join(ZIP_BASE_FOLDER_NAME, "Clear_Shots", CNN_CLASS_NAMES[0].replace(" ", "_"))
 ZIP_WAVES_NOT_DETECTED_FOLDER = os.path.join(ZIP_BASE_FOLDER_NAME, "Clear_Shots", CNN_CLASS_NAMES[1].replace(" ", "_"))
-
-
-def create_classified_images_zip():
-    if not st.session_state['processing_results']:
-        st.warning("No processing results available to create a zip file.")
-        return None # Return None if no results
-
-    zip_buffer = io.BytesIO()
-    
-    # Create the zip file in the in-memory buffer
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED, False) as zipf:
-        added_count = 0
-        for result in st.session_state['processing_results']:
-            file_name = result["file_name"]
-            image_data = result["image_data"]
-
-            if image_data is None or not isinstance(image_data, np.ndarray):
-                st.warning(f"Skipping '{file_name}' for zip: Image data is missing or not a valid NumPy array.")
-                continue
-
-            log_pred_value = result["log_pred_value"]
-            cnn_pred_value = result["cnn_pred_value"]
-
-            # Determine the path where this file should go inside the zip
-            arcname = "" # Archive Name (path inside the zip)
-            if log_pred_value == 0: # Dark Shot
-                arcname = os.path.join(ZIP_DARK_SHOTS_FOLDER, file_name)
-            elif log_pred_value == 1: # Clear Shot
-                if cnn_pred_value == 1: # Waves Patterns detected
-                    arcname = os.path.join(ZIP_WAVES_DETECTED_FOLDER, file_name)
-                elif cnn_pred_value == 0: # Waves Patterns NOT detected
-                    arcname = os.path.join(ZIP_WAVES_NOT_DETECTED_FOLDER, file_name)
-                else: # Fallback for unexpected CNN value for a clear shot
-                    st.warning(f"Skipping '{file_name}' for zip: Clear shot but CNN prediction was inconclusive ({cnn_pred_value}).")
-                    continue
-            else: # Fallback for unexpected logistic value
-                st.warning(f"Skipping '{file_name}' for zip: Unexpected logistic prediction value ({log_pred_value}).")
-                continue
-
-            try:
-                # Get the file extension (e.g., '.tif', '.tiff')
-                file_ext = "." + file_name.split('.')[-1].lower()
-                # Encode the image data into bytes
-                is_success, encoded_image = cv2.imencode(file_ext, image_data)
-                
-                if is_success:
-                    zipf.writestr(arcname, encoded_image.tobytes())
-                    added_count += 1
-                else:
-                    st.error(f"Failed to encode image '{file_name}' for zip. Check file format support.")
-            except Exception as e:
-                st.error(f"Failed to add '{file_name}' to zip: {e}")
-                
-    st.success(f"Prepared {added_count} images for zip archive.")
-    zip_buffer.seek(0) # Rewind the buffer to the beginning
-    return zip_buffer
-
 
 # --- PDF Generation and Image Saving Buttons ---
 if st.session_state['processing_results']:
@@ -264,23 +326,31 @@ if st.session_state['processing_results']:
         file_name="luminescence_report.pdf",
         mime="application/pdf"
     )
-
-    # Button to trigger ZIP creation
-    # This button prepares the zip file and stores it in session state
-    if st.button("Generate Classified Images (ZIP)"):
+    
+    # --- Simplified download logic for all classified images ---
+    if st.button("Download All Classified Images (ZIP)"):
         with st.spinner("Creating zip archive... This may take a moment for large datasets."):
             st.session_state['classified_zip_buffer'] = create_classified_images_zip()
-        if st.session_state['classified_zip_buffer']:
-            st.success("Zip archive created! Click the button below to download.")
-        else:
-            st.error("Failed to create zip archive.")
     
-    # Download button for the ZIP (appears only if the zip buffer exists)
-    if st.session_state['classified_zip_buffer']:
+    if st.session_state.get('classified_zip_buffer'):
         st.download_button(
-            label="Download Classified Images (ZIP)",
+            label="Download Ready!",
             data=st.session_state['classified_zip_buffer'],
             file_name="classified_images.zip",
             mime="application/zip",
-            key="download_classified_zip_button" # Unique key to prevent issues with other buttons
+            key="download_all_zip_button"
+        )
+    
+    # --- Simplified download logic for the "Waves Only" zip ---
+    if st.button("Download ONLY the Images with Waves Detected (ZIP)"):
+        with st.spinner("Creating zip archive... This may take a moment for large datasets."):
+            st.session_state['waves_zip_buffer'] = create_images_with_waves_zip()
+    
+    if st.session_state.get('waves_zip_buffer'):
+        st.download_button(
+            label="Download Ready!",
+            data=st.session_state['waves_zip_buffer'],
+            file_name="images_with_waves.zip",
+            mime="application/zip",
+            key="download_waves_zip_button"
         )
